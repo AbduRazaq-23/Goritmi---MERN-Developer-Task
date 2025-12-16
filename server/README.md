@@ -41,3 +41,32 @@ SMTP_PASS=your_app_password
 SMTP_EMAIL=your_email@gmail.com
 
 <!-- ============================================================== -->
+
+🚀 Features Implemented 12/16/2025
+
+✔ MongoDB database connection
+✔ Environment-based configuration
+✔ Email sending using Nodemailer (SMTP)
+✔ OTP generation using otp-generator
+✔ User registration API
+✔ OTP sent to email on registration
+✔ Secure password hashing (bcrypt)
+✔ Modular folder structure
+
+🛠 Tech Stack
+
+Node.js
+
+Express.js
+
+MongoDB & Mongoose
+
+Nodemailer (SMTP)
+
+otp-generator
+
+bcryptjs
+
+dotenv
+
+<!-- ================================================================ -->
