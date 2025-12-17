@@ -1,26 +1,4 @@
-server/
-│ ├── src/
-| | ├── config/
-| | | ├── db.js
-| | | ├── dotenv.js
-│ │ ├── controllers/
-│ │ │ ├── auth.controller.js
-│ │ │  
-│ │ ├── middlewares/
-│ │ │ ├── auth.middleware.js
-│ │ │  
-│ │ ├── models/
-│ │ │ ├── user.model.js
-│ │ │  
-│ │ ├── routes/
-│ │ │ ├── auth.routes.js
-│ │ │  
-│ │ ├── utils/
-| | | ├── generateOtp.js
-| | | ├── sendEmail.js
-│ │ │  
-│ │ └── app.js
-│ └── index.js
+SERVER/
 
 <!-- ============================================================= -->
 
