@@ -51,6 +51,14 @@ bcryptjs
 
 dotenv
 
+JWT
+
+express-rate-limit
+
+cookie-parser
+
+cors
+
 <!-- ================================================================ -->
 
 <!-- Register -->
@@ -98,3 +106,20 @@ authRouter.route("/otp/resend").post(resendOtpLimiter, resendEmailOtp);
 
 OTP resend invalidates the previous OTP and generates a new 6-digit code.
 Resend requests are rate-limited to prevent abuse.
+
+<!-- ================================================================= -->
+
+<!-- logIn  -->
+
+authRouter.route("/login").post(resendOtpLimiter, logIn);
+
+During login, if a user’s email is not verified, the system blocks token issuance and sends a new OTP for verification. Only verified users receive a JWT session.
+
+<!-- ================================================================= -->
+
+<!-- logOut  -->
+
+clear cookie
+
+<!-- ================================================================= -->
+<!-- MODULE A COMPLETED -->

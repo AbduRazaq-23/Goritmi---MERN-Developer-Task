@@ -122,27 +122,24 @@ const verifyOtp = async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRY }
     );
 
-    // Token Options
-    const Options = {
+    // 🔐 HTTP-only cookie
+    res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-    };
+    });
 
     // Return res as success & set cookie
-    return res
-      .cookie("token", token, Options)
-      .status(200)
-      .json({
-        message: "Email Verified",
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
-      });
+    return res.status(200).json({
+      message: "Email Verified",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
   } catch (error) {
     return res.status(500).json({ message: "server error" });
   }
@@ -204,4 +201,106 @@ const resendEmailOtp = async (req, res) => {
   }
 };
 
-export { register, verifyOtp, resendEmailOtp };
+// ===============================
+// 📌 LOGIN
+// ===============================
+const logIn = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ message: "All field are required" });
+    }
+
+    // Find user
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "Email not found" });
+    }
+
+    // check is Password valid
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Invalid Password" });
+    }
+
+    // Email not verified → send OTP & block login
+    if (!user.isEmailVerified) {
+      const otp = generateOtp();
+      const emailOtpHash = await bcrypt.hash(otp, 10);
+
+      user.emailOtpHash = emailOtpHash;
+      user.emailOtpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 min
+      user.emailOtpAttempts = 0;
+      await user.save();
+
+      // send email
+      await sendEmail({
+        to: email,
+        subject: "Goritmi Login Verification Code",
+        html: `
+          <div style="font-family: Arial, sans-serif">
+            <h2>Login Verification</h2>
+            <p>Your OTP code is:</p>
+            <h1>${otp}</h1>
+            <p>This code will expire in 10 minutes.</p>
+          </div>
+        `,
+      });
+
+      return res.status(403).json({
+        message: "Email not verified. OTP sent to email.",
+        requiresOtp: true,
+        email,
+      });
+    }
+
+    // Email verified → issue JWT
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRY }
+    );
+
+    // 🔐 HTTP-only cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // res successfully
+    return res.status(200).json({
+      message: "Login successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ===============================
+// 📌 LOGOUT
+// ===============================
+const logOut = (req, res) => {
+  const Options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  };
+  return res
+    .clearCookie("token", Options)
+    .status(200)
+    .json({ message: "Logout successfully" });
+};
+
+export { register, verifyOtp, resendEmailOtp, logIn, logOut };
