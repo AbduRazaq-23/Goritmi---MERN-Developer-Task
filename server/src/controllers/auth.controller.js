@@ -60,6 +60,7 @@ const register = async (req, res) => {
     return res.status(500).json({ success: false, message: "server error" });
   }
 };
+
 // ===============================
 // 📌 VERIFY OTP
 // ===============================
@@ -85,11 +86,6 @@ const verifyOtp = async (req, res) => {
 
     // Otp expiry check
     if (user.emailOtpExpiresAt < Date.now()) {
-      user.emailOtpHash = null;
-      user.emailOtpExpiresAt = null;
-      user.emailOtpAttempts = 0;
-      await user.save();
-
       return res
         .status(400)
         .json({ message: "Otp expired! Please resend Otp." });
@@ -97,11 +93,6 @@ const verifyOtp = async (req, res) => {
 
     //  Max attempts check (5)
     if (user.emailOtpAttempts >= 5) {
-      user.emailOtpHash = null;
-      user.emailOtpExpiresAt = null;
-      user.emailOtpAttempts = 0;
-      await user.save();
-
       return res.status(429).json({
         message: "Maximum OTP attempts exceeded. Please resend OTP.",
       });
@@ -143,10 +134,74 @@ const verifyOtp = async (req, res) => {
     return res
       .cookie("token", token, Options)
       .status(200)
-      .json({ message: "Email Verified" });
+      .json({
+        message: "Email Verified",
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+      });
   } catch (error) {
     return res.status(500).json({ message: "server error" });
   }
 };
 
-export { register, verifyOtp };
+// ===============================
+// 📌 RESEND OTP
+// ===============================
+const resendEmailOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validate input
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Find user
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Already verified
+    if (user.isEmailVerified) {
+      return res.status(400).json({ message: "Email already verified" });
+    }
+
+    // Generate new Otp
+    const otp = generateOtp();
+    const emailOtpHash = await bcrypt.hash(otp, 10);
+
+    // Overwrite old OTP (invalidate previous one)
+    user.emailOtpHash = emailOtpHash;
+    user.emailOtpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 mint
+    user.emailOtpAttempts = 0;
+    await user.save();
+
+    //Send email
+    await sendEmail({
+      to: email,
+      subject: "Goritmi Verification Code (Resent)",
+      html: `
+        <div style="font-family: Arial, sans-serif">
+          <h2>OTP Resent</h2>
+          <p>Your new verification code is:</p>
+          <h1>${otp}</h1>
+          <p>This code will expire in 10 minutes.</p>
+        </div>
+      `,
+    });
+
+    return res
+      .status(200)
+      .json({ message: "OTP resent successfully. Please check your email." });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+export { register, verifyOtp, resendEmailOtp };

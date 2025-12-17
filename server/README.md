@@ -113,3 +113,10 @@ OTPs expire after 10 minutes and allow a maximum of 5 attempts.
 After successful verification, OTP fields are cleared and a JWT session is issued.
 
 <!-- ================================================================= -->
+
+ <!-- resendEmailOtp -->
+
+authRouter.route("/otp/resend").post(resendOtpLimiter, resendEmailOtp);
+
+OTP resend invalidates the previous OTP and generates a new 6-digit code.
+Resend requests are rate-limited to prevent abuse.
