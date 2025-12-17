@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import generateOtp from "../utills/generateOtp.js";
 import sendEmail from "../utills/sendEmail.js";
+import jwt from "jsonwebtoken";
 
 // ===============================
 // 📌 REGISTER USER
@@ -51,7 +52,7 @@ const register = async (req, res) => {
       </div>`,
     });
 
-    //  Response
+    //  Return response as success
     return res.status(201).json({
       message: "Registration successful. OTP sent to email.",
     });
@@ -59,5 +60,93 @@ const register = async (req, res) => {
     return res.status(500).json({ success: false, message: "server error" });
   }
 };
+// ===============================
+// 📌 VERIFY OTP
+// ===============================
+const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
 
-export { register };
+    // Validate input
+    if (!email || !otp) {
+      return res.status(400).json({ message: "All field are required" });
+    }
+
+    // Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check Otp existence
+    if (!user.emailOtpHash) {
+      return res.status(404).json({ message: "Otp not found" });
+    }
+
+    // Otp expiry check
+    if (user.emailOtpExpiresAt < Date.now()) {
+      user.emailOtpHash = null;
+      user.emailOtpExpiresAt = null;
+      user.emailOtpAttempts = 0;
+      await user.save();
+
+      return res
+        .status(400)
+        .json({ message: "Otp expired! Please resend Otp." });
+    }
+
+    //  Max attempts check (5)
+    if (user.emailOtpAttempts >= 5) {
+      user.emailOtpHash = null;
+      user.emailOtpExpiresAt = null;
+      user.emailOtpAttempts = 0;
+      await user.save();
+
+      return res.status(429).json({
+        message: "Maximum OTP attempts exceeded. Please resend OTP.",
+      });
+    }
+
+    //Compare OTP (bcrypt)
+    const isOtpValid = await bcrypt.compare(otp, user.emailOtpHash);
+
+    if (!isOtpValid) {
+      user.emailOtpAttempts += 1;
+      await user.save();
+
+      return res.status(400).json({ message: "Invalid Otp" });
+    }
+
+    // Otp success Email verify true & save
+    user.isEmailVerified = true;
+    user.emailOtpHash = null;
+    user.emailOtpExpiresAt = null;
+    user.emailOtpAttempts = 0;
+    await user.save();
+
+    //  Issue JWT
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRY }
+    );
+
+    // Token Options
+    const Options = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    };
+
+    // Return res as success & set cookie
+    return res
+      .cookie("token", token, Options)
+      .status(200)
+      .json({ message: "Email Verified" });
+  } catch (error) {
+    return res.status(500).json({ message: "server error" });
+  }
+};
+
+export { register, verifyOtp };
